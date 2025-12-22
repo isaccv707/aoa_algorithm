@@ -13,11 +13,9 @@ def sphere(x: Vector) -> float:
 
 def rastrigin(x: Vector) -> float:
     """
-    Rastrigin function (clásica para pruebas de optimización):
+    Rastrigin function:
 
     f(x) = 10 * d + sum[x_i^2 - 10 * cos(2*pi*x_i)]
-
-    Tiene muchos mínimos locales, el global está en x = 0...0
     """
     import math
 

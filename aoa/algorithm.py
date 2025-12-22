@@ -17,6 +17,8 @@ def aoa(
     max_moa: float = 0.9,
     seed: Optional[int] = None,
     verbose: bool = True,
+    early_stopping_patience: Optional[int] = None,
+    tol: float = 1e-8,
 ):
     """
     Implementación sencilla y genérica del Arithmetic Optimization Algorithm (AOA).
@@ -25,6 +27,9 @@ def aoa(
     - bounds: lista de (min, max) por cada dimensión.
     - n_agents: tamaño de la población.
     - max_iter: número máximo de iteraciones.
+    - early_stopping_patience: si no mejora el mejor valor en este número de iteraciones,
+      se detiene antes de llegar a max_iter. Si es None, no se aplica early stopping.
+    - tol: mejora mínima que se considera “mejorar”.
     """
 
     if seed is not None:
@@ -35,10 +40,7 @@ def aoa(
     # 1) Inicializar población
     agents: List[Vector] = []
     for _ in range(n_agents):
-        agent = [
-            random.uniform(lb, ub)
-            for (lb, ub) in bounds
-        ]
+        agent = [random.uniform(lb, ub) for (lb, ub) in bounds]
         agents.append(agent)
 
     # Evaluar población inicial
@@ -51,12 +53,14 @@ def aoa(
 
     best_history: List[float] = []
 
-    # Precalcular término de rango por dimensión
-    # IMPORTANTE: solo usamos el tamaño del rango, sin sumar lb
+    # Precalcular término de rango por dimensión (tamaño del paso)
     # range_term[j] = (UB_j - LB_j) * mu
     range_term: Vector = []
     for lb, ub in bounds:
         range_term.append((ub - lb) * mu)
+
+    # Variables para early stopping
+    no_improve_counter = 0
 
     # Bucle principal
     for t in range(1, max_iter + 1):
@@ -110,6 +114,7 @@ def aoa(
         fitness = [objective_fn(agent) for agent in agents]
 
         # Buscar nuevo mejor
+        prev_best_score = best_score
         best_index = min(range(n_agents), key=lambda i: fitness[i])
         if fitness[best_index] < best_score:
             best_score = fitness[best_index]
@@ -117,10 +122,27 @@ def aoa(
 
         best_history.append(best_score)
 
+        # Log
         if verbose:
             print(
-                f"Iteración {t:03d} | mejor f(x) = {best_score:.6f} | "
-                f"mejor x = {[round(v, 4) for v in best_pos]}"
+                f"Iteración {t:03d} | mejor f(x) = {best_score:.6e} | "
+                f"mejor x = {[round(v, 6) for v in best_pos]}"
             )
+
+        # 5) Early stopping
+        if early_stopping_patience is not None:
+            if prev_best_score - best_score > tol:
+                # Hubo mejora significativa
+                no_improve_counter = 0
+            else:
+                no_improve_counter += 1
+
+            if no_improve_counter >= early_stopping_patience:
+                if verbose:
+                    print(
+                        f"\nEarly stopping activado en la iteración {t} "
+                        f"(sin mejora durante {early_stopping_patience} iteraciones)."
+                    )
+                break
 
     return best_pos, best_score, best_history
