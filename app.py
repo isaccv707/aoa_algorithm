@@ -7,28 +7,27 @@ from aoa.algorithm import aoa
 from image_objective import rgb_otsu_objective, precompute_otsu_data
 from segmentation_metrics import calculate_segmentation_metrics
 
-# --- Page Config ---
-st.set_page_config(page_title="AOA Image Segmentation", layout="wide")
+st.set_page_config(page_title="Segmentación de Imágenes AOA", layout="wide")
 
-st.title("AOA Image Segmentation Dashboard")
+st.title("Panel de Segmentación de Imágenes mediante AOA")
 st.markdown("""
-This dashboard uses the **Arithmetic Optimization Algorithm (AOA)** to perform multi-level RGB image segmentation. 
-It finds the optimal thresholds for each channel (Red, Green, Blue) by maximizing **Otsu's Between-Class Variance**.
+Este panel utiliza el **Algoritmo de Optimización Aritmética (AOA)** para realizar la segmentación multinivel de imágenes RGB. 
+Encuentra los umbrales óptimos para cada canal (Rojo, Verde, Azul) maximizando la **Varianza entre clases de Otsu**.
 """)
 
-# --- Sidebar: Hyperparameters ---
-st.sidebar.header("AOA Hyperparameters")
-n_agents = st.sidebar.slider("Number of Agents", 10, 100, 30, help="Population size of the algorithm.")
-max_iter = st.sidebar.slider("Maximum Iterations", 10, 500, 100, help="Maximum number of optimization steps.")
-k_thresholds = st.sidebar.slider("Thresholds per Channel (K)", 1, 5, 3, help="Number of levels per RGB channel.")
+# --- Sidebar: Hiperparámetros ---
+st.sidebar.header("Hiperparámetros del AOA")
+n_agents = st.sidebar.slider("Número de Agentes", 10, 100, 30, help="Tamaño de la población del algoritmo.")
+max_iter = st.sidebar.slider("Iteraciones Máximas", 10, 500, 100, help="Número máximo de pasos de optimización.")
+k_thresholds = st.sidebar.slider("Umbrales por Canal (K)", 1, 5, 3, help="Número de niveles por cada canal RGB.")
 
-with st.sidebar.expander("About the Metrics"):
+with st.sidebar.expander("Sobre las Métricas"):
     st.markdown("""
-    - **PSNR (Peak Signal-to-Noise Ratio):** Measures reconstruction quality (Higher is better).
-    - **SSIM (Structural Similarity Index):** Measures perceived similarity (1.0 is perfect).
+    - **PSNR (Relación Señal-Ruido de Pico):** Mide la calidad de la reconstrucción (Mayor es mejor).
+    - **SSIM (Índice de Similitud Estructural):** Mide la similitud percibida (1.0 es perfecto).
     """)
 
-# --- Helper Functions ---
+# --- Funciones Auxiliares ---
 def segment_channel(image_channel, thresholds):
     t = np.sort(np.round(thresholds).astype(int))
     segmented = np.zeros_like(image_channel)
@@ -43,7 +42,6 @@ def segment_channel(image_channel, thresholds):
 
 @st.cache_data
 def run_aoa_pipeline(image_rgb, n_agents, max_iter, k):
-    # Precompute data for the 3 channels
     cdfs = np.zeros((3, 256))
     cum_means = np.zeros((3, 256))
     mu_totals = np.zeros(3)
@@ -67,7 +65,6 @@ def run_aoa_pipeline(image_rgb, n_agents, max_iter, k):
     )
     execution_time = time.time() - start_time
     
-    # Reconstruct Segmented Image
     segmented_rgb = np.zeros_like(image_rgb)
     thresholds_report = []
     for c in range(3):
@@ -88,66 +85,63 @@ def run_aoa_pipeline(image_rgb, n_agents, max_iter, k):
         "hists": hists
     }
 
-# --- Main App Logic ---
-uploaded_file = st.file_uploader("Upload an Image", type=["jpg", "png", "jpeg"])
+uploaded_file = st.file_uploader("Subir una Imagen", type=["jpg", "png", "jpeg"])
 
 if uploaded_file is not None:
-    # Convert file to image
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     image_bgr = cv2.imdecode(file_bytes, 1)
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Original Image")
+        st.subheader("Imagen Original")
         st.image(image_rgb, use_container_width=True)
 
-    if st.button("Run AOA Optimization"):
-        with st.spinner("Optimizing thresholds... This may take a few seconds."):
+    if st.button("Ejecutar Optimización AOA"):
+        with st.spinner("Optimizando umbrales... Esto puede tardar unos segundos."):
             results = run_aoa_pipeline(image_rgb, n_agents, max_iter, k_thresholds)
         
         with col2:
-            st.subheader("Segmented Result")
+            st.subheader("Resultado Segmentado")
             st.image(results["segmented_rgb"], use_container_width=True)
 
-        # Metrics display
         st.write("---")
-        st.subheader("Performance Metrics")
+        st.subheader("Métricas de Rendimiento")
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Execution Time", f"{results['execution_time']:.3f}s")
-        m2.metric("Best Fitness", f"{results['best_val']:.2f}")
+        m1.metric("Tiempo de Ejecución", f"{results['execution_time']:.3f}s")
+        m2.metric("Mejor Fitness", f"{results['best_val']:.2f}")
         m3.metric("PSNR", f"{results['metrics']['psnr']:.2f} dB")
         m4.metric("SSIM", f"{results['metrics']['ssim']:.4f}")
 
-        # Analysis Layout
         st.write("---")
-        tab1, tab2 = st.tabs(["Convergence Curve", "RGB Histograms"])
+        tab1, tab2 = st.tabs(["Curva de Convergencia", "Histogramas RGB"])
 
         with tab1:
-            st.subheader("AOA Optimization Progress")
+            st.subheader("Progreso de la Optimización AOA")
             fig_hist, ax_hist = plt.subplots(figsize=(10, 4))
             ax_hist.plot(results["history"], color='purple', linewidth=2)
-            ax_hist.set_xlabel("Iteration")
-            ax_hist.set_ylabel("Fitness (Otsu Variance)")
+            ax_hist.set_xlabel("Iteración")
+            ax_hist.set_ylabel("Fitness (Varianza de Otsu)")
             ax_hist.grid(True, alpha=0.3)
             st.pyplot(fig_hist)
 
         with tab2:
-            st.subheader("Optimal Thresholds per Channel")
+            st.subheader("Umbrales Óptimos por Canal")
             colors = ['red', 'green', 'blue']
+            nombres_colores = ['Rojo', 'Verde', 'Azul']
             fig_h, axes_h = plt.subplots(1, 3, figsize=(15, 4))
             for i, color in enumerate(colors):
                 axes_h[i].plot(results["hists"][i], color=color)
-                axes_h[i].set_title(f"{color.capitalize()} Channel")
+                axes_h[i].set_title(f"Canal {nombres_colores[i]}")
                 for t in results["thresholds"][i]:
                     axes_h[i].axvline(x=t, color='black', linestyle='--', alpha=0.7)
                 axes_h[i].set_xlim([0, 256])
             st.pyplot(fig_h)
             
-            st.info(f"**Thresholds Found:** R: {results['thresholds'][0]} | G: {results['thresholds'][1]} | B: {results['thresholds'][2]}")
+            st.info(f"**Umbrales encontrados:** R: {results['thresholds'][0]} | G: {results['thresholds'][1]} | B: {results['thresholds'][2]}")
 
 else:
-    st.info("Please upload an image to start the segmentation process.")
+    st.info("Por favor, sube una imagen para comenzar el proceso de segmentación.")
 
 st.sidebar.markdown("---")
-st.sidebar.write("Developed with Python, Numba & Streamlit.")
+st.sidebar.write("Desarrollado con Python, Numba y Streamlit.")

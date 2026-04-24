@@ -5,7 +5,7 @@ Vector = List[float]
 
 def sphere(x: Vector) -> float:
     """
-    Sphere function: f(x) = sum(x_i^2)
+    Sphere funcion: f(x) = sum(x_i^2)
     Mínimo en x = 0...0 con f(x) = 0
     """
     return sum(v ** 2 for v in x)
@@ -13,7 +13,7 @@ def sphere(x: Vector) -> float:
 
 def rastrigin(x: Vector) -> float:
     """
-    Rastrigin function:
+    Rastrigin funcion:
 
     f(x) = 10 * d + sum[x_i^2 - 10 * cos(2*pi*x_i)]
     """

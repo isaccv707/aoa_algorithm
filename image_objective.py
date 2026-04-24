@@ -5,28 +5,28 @@ from typing import Tuple
 @njit
 def precompute_otsu_data(hist: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
     """
-    Precomputes CDF and Cumulative Weighted Mean for a single channel.
-    Ensures strict float64 consistency to avoid Numba TypingErrors.
+    Calcula previamente la función de distribución acumulativa (CDF) y la media ponderada acumulativa para un solo canal.
+    Garantiza una estricta consistencia de float64 para evitar errores de tipo de Numba.
     """
-    # Explicitly cast input to float64
+    # Convierte la entrada a float64
     hist_64 = hist.astype(np.float64)
     
     total_pixels = np.sum(hist_64)
     if total_pixels == 0:
         return np.zeros(256, dtype=np.float64), np.zeros(256, dtype=np.float64), 0.0
     
-    # Probabilities (float64)
+    # Probabilidades (float64)
     p = (hist_64 / total_pixels).flatten()
     
-    # CDF (Cumulative Sum of Probabilities)
+    # CDF Suma acumulada de probabilidades
     cdf = np.cumsum(p).astype(np.float64)
     
-    # Cumulative Weighted Mean: sum(i * p[i]) from 0 to k
+    # Media ponderada acumulada: sum(i * p[i]) from 0 to k
     intensities = np.arange(256, dtype=np.float64)
     intensity_p = intensities * p
     cum_mean = np.cumsum(intensity_p).astype(np.float64)
     
-    # Total mean of the histogram
+    # Media total del histograma
     mu_total = float(cum_mean[-1])
     
     return cdf, cum_mean, mu_total
@@ -34,25 +34,22 @@ def precompute_otsu_data(hist: np.ndarray) -> Tuple[np.ndarray, np.ndarray, floa
 @njit
 def otsu_multi_objective(thresholds: np.ndarray, cdf: np.ndarray, cum_mean: np.ndarray, mu_total: float) -> float:
     """
-    Calculates Otsu's Between-Class Variance for N thresholds in O(N) time.
-    Maintains float64 precision for all internal calculations.
+    Calcula la varianza entre clases de Otsu para N umbrales en tiempo O(N).
+    Mantiene precisión float64 para todos los cálculos internos.
     """
-    # Thresholds are rounded to nearest integer for histogram indexing
     t = np.unique(np.round(thresholds).astype(np.int32))
     t = np.clip(t, 1, 254)
     
-    # Define class borders: [0, t1, t2, ..., tn, 255]
     bins = np.zeros(len(t) + 2, dtype=np.int32)
     bins[1:-1] = t
     bins[-1] = 255
     
-    between_class_variance = 0.0 # float64 by default in Numba
+    between_class_variance = 0.0 
     
     for i in range(len(bins) - 1):
         start = bins[i]
         end = bins[i+1]
         
-        # Calculate Weight (omega) in O(1)
         if start == 0:
             weight = cdf[end]
             sum_weighted = cum_mean[end]
@@ -60,29 +57,25 @@ def otsu_multi_objective(thresholds: np.ndarray, cdf: np.ndarray, cum_mean: np.n
             weight = cdf[end] - cdf[start]
             sum_weighted = cum_mean[end] - cum_mean[start]
             
-        if weight <= 1e-12: # Increased precision for zero-check
+        if weight <= 1e-12:
             continue
             
         mean = sum_weighted / weight
         
-        # Contribution to between-class variance
         diff = mean - mu_total
         between_class_variance += weight * (diff * diff)
         
-    # Minimize the negative variance to maximize original criterion
     return -float(between_class_variance)
 
 @njit
 def rgb_otsu_objective(combined_thresholds: np.ndarray, cdfs: np.ndarray, cum_means: np.ndarray, mu_totals: np.ndarray, k: int) -> float:
     """
-    Objective function for RGB: Sum of between-class variances across R, G, B channels.
-    combined_thresholds: flattened array of size 3*k (k thresholds per channel)
+    Función objetivo para RGB: Suma de las varianzas entre clases en los canales R, G y B.
+    Umbrales combinados: matriz aplanada de tamaño 3*k (k umbrales por canal).
     """
     total_score = 0.0
     for c in range(3):
-        # Extract thresholds for the current channel
         t_channel = combined_thresholds[c*k : (c+1)*k]
-        # Calculate variance for this channel using precomputed float64 data
         score = otsu_multi_objective(t_channel, cdfs[c], cum_means[c], mu_totals[c])
         total_score += score
         

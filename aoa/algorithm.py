@@ -2,13 +2,13 @@ import numpy as np
 from numba import njit, prange
 from typing import Callable, List, Tuple, Optional, Union
 
-# Define the update logic in a separate Numba function for maximum speed
+# Definimos la lógica de actualización en una función Numba separada para máxima velocidad
 @njit(parallel=True)
 def _update_population(
     agents, best_pos, mop, moa, range_term, lb, ub, n_agents, n_dims
 ):
     """
-    Vectorized and Parallelized update of the population using AOA rules.
+    Actualización vectorizada y paralela de la población usando las reglas de AOA.
     """
     new_agents = np.empty_like(agents)
     
@@ -19,7 +19,7 @@ def _update_population(
             r3 = np.random.random()
             
             if r1 > moa:
-                # --- EXPLORATION ---
+                # --- EXPLORACIÓN ---
                 if r2 < 0.5:
                     # op_div = best_pos / (mop + eps) * range_term
                     val = best_pos[j] / (mop + 1e-9) * range_term[j]
@@ -27,7 +27,7 @@ def _update_population(
                     # op_mul = best_pos * mop * range_term
                     val = best_pos[j] * mop * range_term[j]
             else:
-                # --- EXPLOITATION ---
+                # --- EXPLOTACIÓN ---
                 if r3 < 0.5:
                     # op_sub = best_pos - mop * range_term
                     val = best_pos[j] - mop * range_term[j]
@@ -35,7 +35,7 @@ def _update_population(
                     # op_add = best_pos + mop * range_term
                     val = best_pos[j] + mop * range_term[j]
             
-            # Clipping
+            # Recorte (Clipping)
             if val < lb[j]: val = lb[j]
             if val > ub[j]: val = ub[j]
             new_agents[i, j] = val
@@ -63,17 +63,17 @@ def aoa(
     lb = np.array([b[0] for b in bounds])
     ub = np.array([b[1] for b in bounds])
 
-    # 1) Initialize population
+    # 1) Inicializar población
     agents = np.random.uniform(0, 1, (n_agents, n_dims))
     for j in range(n_dims):
         agents[:, j] = lb[j] + agents[:, j] * (ub[j] - lb[j])
     
-    # Initial fitness
+    # Fitness inicial
     fitness = np.zeros(n_agents)
     for i in range(n_agents):
         fitness[i] = objective_fn(agents[i])
 
-    # Initial best
+    # Mejor inicial
     best_idx = np.argmin(fitness)
     best_pos = agents[best_idx].copy()
     best_score = fitness[best_idx]
@@ -83,21 +83,21 @@ def aoa(
     no_improve_counter = 0
 
     for t in range(1, max_iter + 1):
-        # Update Coefficients
+        # Actualizar Coeficientes
         moa = min_moa + t * (max_moa - min_moa) / max_iter
         mop = 1.0 - (t ** (1.0 / alpha)) / (max_iter ** (1.0 / alpha))
 
-        # Core update logic (JIT and Parallelized)
+        # Lógica central de actualización (JIT y Paralelizada)
         agents = _update_population(
             agents, best_pos, mop, moa, range_term, lb, ub, n_agents, n_dims
         )
 
-        # Evaluate fitness
-        # (This is still the main loop; if objective_fn is NJIT, this is very fast)
+        # Evaluar fitness
+        # (Esto sigue siendo el bucle principal; si objective_fn es NJIT, es muy rápido)
         for i in range(n_agents):
             fitness[i] = objective_fn(agents[i])
 
-        # Find current best
+        # Encontrar el mejor actual
         current_best_idx = np.argmin(fitness)
         current_best_score = fitness[current_best_idx]
         
@@ -117,7 +117,7 @@ def aoa(
             print(f"Iteración {t:03d} | mejor f(x) = {best_score:.6e}")
 
         if early_stopping_patience is not None and no_improve_counter >= early_stopping_patience:
-            if verbose: print(f"\nEarly stopping en {t}.")
+            if verbose: print(f"\nParada temprana (early stopping) en la iteración {t}.")
             break
 
     return best_pos, best_score, best_history
